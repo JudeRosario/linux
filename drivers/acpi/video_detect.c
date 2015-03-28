@@ -40,8 +40,6 @@
 
 #include "internal.h"
 
-#define PREFIX "ACPI: "
-
 ACPI_MODULE_NAME("video");
 #define _COMPONENT		ACPI_VIDEO_COMPONENT
 
@@ -170,18 +168,18 @@ static struct dmi_system_id video_detect_dmi_table[] = {
 	},
 	{
 	.callback = video_detect_force_vendor,
-	.ident = "HP EliteBook Revolve 810",
+	.ident = "Dell Inspiron 5737",
 	.matches = {
-		DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
-		DMI_MATCH(DMI_PRODUCT_NAME, "HP EliteBook Revolve 810 G1"),
+		DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
+		DMI_MATCH(DMI_PRODUCT_NAME, "Inspiron 5737"),
 		},
 	},
 	{
 	.callback = video_detect_force_vendor,
-	.ident = "Lenovo Yoga 13",
+	.ident = "Lenovo IdeaPad Z570",
 	.matches = {
 		DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
-		DMI_MATCH(DMI_PRODUCT_VERSION, "Lenovo IdeaPad Yoga 13"),
+		DMI_MATCH(DMI_PRODUCT_VERSION, "Ideapad Z570"),
 		},
 	},
 	{ },

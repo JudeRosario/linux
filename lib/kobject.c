@@ -94,7 +94,7 @@ static int create_dir(struct kobject *kobj)
 		BUG_ON(ops->type >= KOBJ_NS_TYPES);
 		BUG_ON(!kobj_ns_type_registered(ops->type));
 
-		kernfs_enable_ns(kobj->sd);
+		sysfs_enable_ns(kobj->sd);
 	}
 
 	return 0;
@@ -976,7 +976,7 @@ const struct kobj_ns_type_operations *kobj_child_ns_ops(struct kobject *parent)
 {
 	const struct kobj_ns_type_operations *ops = NULL;
 
-	if (parent && parent->ktype->child_ns_type)
+	if (parent && parent->ktype && parent->ktype->child_ns_type)
 		ops = parent->ktype->child_ns_type(parent);
 
 	return ops;

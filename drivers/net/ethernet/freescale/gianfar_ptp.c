@@ -414,6 +414,7 @@ static struct ptp_clock_info ptp_gianfar_caps = {
 	.n_alarm	= 0,
 	.n_ext_ts	= N_EXT_TS,
 	.n_per_out	= 0,
+	.n_pins		= 0,
 	.pps		= 1,
 	.adjfreq	= ptp_gianfar_adjfreq,
 	.adjtime	= ptp_gianfar_adjtime,
@@ -562,7 +563,6 @@ static struct platform_driver gianfar_ptp_driver = {
 	.driver = {
 		.name		= "gianfar_ptp",
 		.of_match_table	= match_table,
-		.owner		= THIS_MODULE,
 	},
 	.probe       = gianfar_ptp_probe,
 	.remove      = gianfar_ptp_remove,

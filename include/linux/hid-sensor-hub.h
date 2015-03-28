@@ -33,6 +33,8 @@
  * @units:		Measurment unit for this attribute.
  * @unit_expo:		Exponent used in the data.
  * @size:		Size in bytes for data size.
+ * @logical_minimum:	Logical minimum value for this attribute.
+ * @logical_maximum:	Logical maximum value for this attribute.
  */
 struct hid_sensor_hub_attribute_info {
 	u32 usage_id;
@@ -51,13 +53,15 @@ struct hid_sensor_hub_attribute_info {
  * @hdev:		Stores the hid instance.
  * @vendor_id:		Vendor id of hub device.
  * @product_id:		Product id of hub device.
- * @ref_cnt:		Number of MFD clients have opened this device
+ * @start_collection_index: Starting index for a phy type collection
+ * @end_collection_index: Last index for a phy type collection
  */
 struct hid_sensor_hub_device {
 	struct hid_device *hdev;
 	u32 vendor_id;
 	u32 product_id;
-	int ref_cnt;
+	int start_collection_index;
+	int end_collection_index;
 };
 
 /**
@@ -144,6 +148,7 @@ int sensor_hub_input_get_attribute_info(struct hid_sensor_hub_device *hsdev,
 
 /**
 * sensor_hub_input_attr_get_raw_value() - Synchronous read request
+* @hsdev:	Hub device instance.
 * @usage_id:	Attribute usage id of parent physical device as per spec
 * @attr_usage_id:	Attribute usage id as per spec
 * @report_id:	Report id to look for
@@ -158,6 +163,7 @@ int sensor_hub_input_attr_get_raw_value(struct hid_sensor_hub_device *hsdev,
 			u32 attr_usage_id, u32 report_id);
 /**
 * sensor_hub_set_feature() - Feature set request
+* @hsdev:	Hub device instance.
 * @report_id:	Report id to look for
 * @field_index:	Field index inside a report
 * @value:	Value to set
@@ -170,6 +176,7 @@ int sensor_hub_set_feature(struct hid_sensor_hub_device *hsdev, u32 report_id,
 
 /**
 * sensor_hub_get_feature() - Feature get request
+* @hsdev:	Hub device instance.
 * @report_id:	Report id to look for
 * @field_index:	Field index inside a report
 * @value:	Place holder for return value
@@ -187,7 +194,7 @@ struct hid_sensor_common {
 	struct hid_sensor_hub_device *hsdev;
 	struct platform_device *pdev;
 	unsigned usage_id;
-	bool data_ready;
+	atomic_t data_ready;
 	struct iio_trigger *trigger;
 	struct hid_sensor_hub_attribute_info poll;
 	struct hid_sensor_hub_attribute_info report_state;
@@ -217,5 +224,14 @@ int hid_sensor_write_samp_freq_value(struct hid_sensor_common *st,
 					int val1, int val2);
 int hid_sensor_read_samp_freq_value(struct hid_sensor_common *st,
 					int *val1, int *val2);
+
+int hid_sensor_get_usage_index(struct hid_sensor_hub_device *hsdev,
+				u32 report_id, int field_index, u32 usage_id);
+
+int hid_sensor_format_scale(u32 usage_id,
+			    struct hid_sensor_hub_attribute_info *attr_info,
+			    int *val0, int *val1);
+
+s32 hid_sensor_read_poll_value(struct hid_sensor_common *st);
 
 #endif

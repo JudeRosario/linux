@@ -20,6 +20,7 @@
 #include <linux/input.h>
 #include <linux/io.h>
 #include <linux/delay.h>
+#include <linux/smc91x.h>
 
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
@@ -46,8 +47,12 @@ static struct resource smc91x_resources[] = {
 	[1] = {
 		.start	= MSM_GPIO_TO_INT(49),
 		.end	= MSM_GPIO_TO_INT(49),
-		.flags	= IORESOURCE_IRQ,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL,
 	},
+};
+
+static struct smc91x_platdata smc91x_platdata = {
+	.flags = SMC91X_USE_16BIT | SMC91X_NOWAIT,
 };
 
 static struct platform_device smc91x_device = {
@@ -55,6 +60,7 @@ static struct platform_device smc91x_device = {
 	.id		= 0,
 	.num_resources	= ARRAY_SIZE(smc91x_resources),
 	.resource	= smc91x_resources,
+	.dev.platform_data = &smc91x_platdata,
 };
 
 static struct platform_device *devices[] __initdata = {
@@ -83,11 +89,6 @@ static void __init halibut_init(void)
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 }
 
-static void __init halibut_fixup(struct tag *tags, char **cmdline,
-				 struct meminfo *mi)
-{
-}
-
 static void __init halibut_map_io(void)
 {
 	msm_map_common_io();
@@ -100,7 +101,6 @@ static void __init halibut_init_late(void)
 
 MACHINE_START(HALIBUT, "Halibut Board (QCT SURF7200A)")
 	.atag_offset	= 0x100,
-	.fixup		= halibut_fixup,
 	.map_io		= halibut_map_io,
 	.init_early	= halibut_init_early,
 	.init_irq	= halibut_init_irq,

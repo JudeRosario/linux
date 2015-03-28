@@ -10,13 +10,8 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <linux/init.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
@@ -467,11 +462,9 @@ EXPORT_SYMBOL_GPL(spi_bitbang_start);
 /**
  * spi_bitbang_stop - stops the task providing spi communication
  */
-int spi_bitbang_stop(struct spi_bitbang *bitbang)
+void spi_bitbang_stop(struct spi_bitbang *bitbang)
 {
 	spi_unregister_master(bitbang->master);
-
-	return 0;
 }
 EXPORT_SYMBOL_GPL(spi_bitbang_stop);
 

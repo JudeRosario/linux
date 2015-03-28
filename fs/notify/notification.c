@@ -73,19 +73,21 @@ void fsnotify_destroy_event(struct fsnotify_group *group,
 	/* Overflow events are per-group and we don't want to free them */
 	if (!event || event->mask == FS_Q_OVERFLOW)
 		return;
-
+	/* If the event is still queued, we have a problem... */
+	WARN_ON(!list_empty(&event->list));
 	group->ops->free_event(event);
 }
 
 /*
  * Add an event to the group notification queue.  The group can later pull this
  * event off the queue to deal with.  The function returns 0 if the event was
- * added to the queue, 1 if the event was merged with some other queued event.
+ * added to the queue, 1 if the event was merged with some other queued event,
+ * 2 if the queue of events has overflown.
  */
-int fsnotify_add_notify_event(struct fsnotify_group *group,
-			      struct fsnotify_event *event,
-			      int (*merge)(struct list_head *,
-					   struct fsnotify_event *))
+int fsnotify_add_event(struct fsnotify_group *group,
+		       struct fsnotify_event *event,
+		       int (*merge)(struct list_head *,
+				    struct fsnotify_event *))
 {
 	int ret = 0;
 	struct list_head *list = &group->notification_list;
@@ -95,10 +97,14 @@ int fsnotify_add_notify_event(struct fsnotify_group *group,
 	mutex_lock(&group->notification_mutex);
 
 	if (group->q_len >= group->max_events) {
+		ret = 2;
 		/* Queue overflow event only if it isn't already queued */
-		if (list_empty(&group->overflow_event.list))
-			event = &group->overflow_event;
-		ret = 1;
+		if (!list_empty(&group->overflow_event->list)) {
+			mutex_unlock(&group->notification_mutex);
+			return ret;
+		}
+		event = group->overflow_event;
+		goto queue;
 	}
 
 	if (!list_empty(list) && merge) {
@@ -109,6 +115,7 @@ int fsnotify_add_notify_event(struct fsnotify_group *group,
 		}
 	}
 
+queue:
 	group->q_len++;
 	list_add_tail(&event->list, list);
 	mutex_unlock(&group->notification_mutex);
@@ -119,10 +126,25 @@ int fsnotify_add_notify_event(struct fsnotify_group *group,
 }
 
 /*
+ * Remove @event from group's notification queue. It is the responsibility of
+ * the caller to destroy the event.
+ */
+void fsnotify_remove_event(struct fsnotify_group *group,
+			   struct fsnotify_event *event)
+{
+	mutex_lock(&group->notification_mutex);
+	if (!list_empty(&event->list)) {
+		list_del_init(&event->list);
+		group->q_len--;
+	}
+	mutex_unlock(&group->notification_mutex);
+}
+
+/*
  * Remove and return the first event from the notification list.  It is the
  * responsibility of the caller to destroy the obtained event
  */
-struct fsnotify_event *fsnotify_remove_notify_event(struct fsnotify_group *group)
+struct fsnotify_event *fsnotify_remove_first_event(struct fsnotify_group *group)
 {
 	struct fsnotify_event *event;
 
@@ -132,16 +154,21 @@ struct fsnotify_event *fsnotify_remove_notify_event(struct fsnotify_group *group
 
 	event = list_first_entry(&group->notification_list,
 				 struct fsnotify_event, list);
-	list_del(&event->list);
+	/*
+	 * We need to init list head for the case of overflow event so that
+	 * check in fsnotify_add_event() works
+	 */
+	list_del_init(&event->list);
 	group->q_len--;
 
 	return event;
 }
 
 /*
- * This will not remove the event, that must be done with fsnotify_remove_notify_event()
+ * This will not remove the event, that must be done with
+ * fsnotify_remove_first_event()
  */
-struct fsnotify_event *fsnotify_peek_notify_event(struct fsnotify_group *group)
+struct fsnotify_event *fsnotify_peek_first_event(struct fsnotify_group *group)
 {
 	BUG_ON(!mutex_is_locked(&group->notification_mutex));
 
@@ -159,7 +186,7 @@ void fsnotify_flush_notify(struct fsnotify_group *group)
 
 	mutex_lock(&group->notification_mutex);
 	while (!fsnotify_notify_queue_is_empty(group)) {
-		event = fsnotify_remove_notify_event(group);
+		event = fsnotify_remove_first_event(group);
 		fsnotify_destroy_event(group, event);
 	}
 	mutex_unlock(&group->notification_mutex);

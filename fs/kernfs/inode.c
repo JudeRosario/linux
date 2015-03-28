@@ -24,12 +24,6 @@ static const struct address_space_operations kernfs_aops = {
 	.write_end	= simple_write_end,
 };
 
-static struct backing_dev_info kernfs_bdi = {
-	.name		= "kernfs",
-	.ra_pages	= 0,	/* No readahead */
-	.capabilities	= BDI_CAP_NO_ACCT_AND_WRITEBACK,
-};
-
 static const struct inode_operations kernfs_iops = {
 	.permission	= kernfs_iop_permission,
 	.setattr	= kernfs_iop_setattr,
@@ -40,22 +34,20 @@ static const struct inode_operations kernfs_iops = {
 	.listxattr	= kernfs_iop_listxattr,
 };
 
-void __init kernfs_inode_init(void)
-{
-	if (bdi_init(&kernfs_bdi))
-		panic("failed to init kernfs_bdi");
-}
-
 static struct kernfs_iattrs *kernfs_iattrs(struct kernfs_node *kn)
 {
+	static DEFINE_MUTEX(iattr_mutex);
+	struct kernfs_iattrs *ret;
 	struct iattr *iattrs;
 
+	mutex_lock(&iattr_mutex);
+
 	if (kn->iattr)
-		return kn->iattr;
+		goto out_unlock;
 
 	kn->iattr = kzalloc(sizeof(struct kernfs_iattrs), GFP_KERNEL);
 	if (!kn->iattr)
-		return NULL;
+		goto out_unlock;
 	iattrs = &kn->iattr->ia_iattr;
 
 	/* assign default attributes */
@@ -65,8 +57,10 @@ static struct kernfs_iattrs *kernfs_iattrs(struct kernfs_node *kn)
 	iattrs->ia_atime = iattrs->ia_mtime = iattrs->ia_ctime = CURRENT_TIME;
 
 	simple_xattrs_init(&kn->iattr->xattrs);
-
-	return kn->iattr;
+out_unlock:
+	ret = kn->iattr;
+	mutex_unlock(&iattr_mutex);
+	return ret;
 }
 
 static int __kernfs_setattr(struct kernfs_node *kn, const struct iattr *iattr)
@@ -292,7 +286,6 @@ static void kernfs_init_inode(struct kernfs_node *kn, struct inode *inode)
 	kernfs_get(kn);
 	inode->i_private = kn;
 	inode->i_mapping->a_ops = &kernfs_aops;
-	inode->i_mapping->backing_dev_info = &kernfs_bdi;
 	inode->i_op = &kernfs_iops;
 
 	set_default_inode_attr(inode, kn->mode);
@@ -355,7 +348,7 @@ void kernfs_evict_inode(struct inode *inode)
 {
 	struct kernfs_node *kn = inode->i_private;
 
-	truncate_inode_pages(&inode->i_data, 0);
+	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
 	kernfs_put(kn);
 }

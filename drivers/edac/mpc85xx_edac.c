@@ -1,5 +1,5 @@
 /*
- * Freescale MPC85xx Memory Controller kenel module
+ * Freescale MPC85xx Memory Controller kernel module
  *
  * Parts Copyrighted (c) 2013 by Freescale Semiconductor, Inc.
  *
@@ -357,7 +357,7 @@ int mpc85xx_pci_err_probe(struct platform_device *op)
 		pdata->irq = irq_of_parse_and_map(op->dev.of_node, 0);
 		res = devm_request_irq(&op->dev, pdata->irq,
 				       mpc85xx_pci_isr,
-				       IRQF_DISABLED | IRQF_SHARED,
+				       IRQF_SHARED,
 				       "[EDAC] PCI err", pci);
 		if (res < 0) {
 			printk(KERN_ERR
@@ -633,7 +633,7 @@ static int mpc85xx_l2_err_probe(struct platform_device *op)
 	if (edac_op_state == EDAC_OPSTATE_INT) {
 		pdata->irq = irq_of_parse_and_map(op->dev.of_node, 0);
 		res = devm_request_irq(&op->dev, pdata->irq,
-				       mpc85xx_l2_isr, IRQF_DISABLED,
+				       mpc85xx_l2_isr, IRQF_SHARED,
 				       "[EDAC] L2 err", edac_dev);
 		if (res < 0) {
 			printk(KERN_ERR
@@ -715,7 +715,6 @@ static struct platform_driver mpc85xx_l2_err_driver = {
 	.remove = mpc85xx_l2_err_remove,
 	.driver = {
 		.name = "mpc85xx_l2_err",
-		.owner = THIS_MODULE,
 		.of_match_table = mpc85xx_l2_err_of_match,
 	},
 };
@@ -1133,7 +1132,7 @@ static int mpc85xx_mc_err_probe(struct platform_device *op)
 		pdata->irq = irq_of_parse_and_map(op->dev.of_node, 0);
 		res = devm_request_irq(&op->dev, pdata->irq,
 				       mpc85xx_mc_isr,
-					IRQF_DISABLED | IRQF_SHARED,
+				       IRQF_SHARED,
 				       "[EDAC] MC err", mci);
 		if (res < 0) {
 			printk(KERN_ERR "%s: Unable to request irq %d for "
@@ -1215,7 +1214,6 @@ static struct platform_driver mpc85xx_mc_err_driver = {
 	.remove = mpc85xx_mc_err_remove,
 	.driver = {
 		.name = "mpc85xx_mc_err",
-		.owner = THIS_MODULE,
 		.of_match_table = mpc85xx_mc_err_of_match,
 	},
 };

@@ -46,7 +46,6 @@ static struct nouveau_dsm_priv {
 	bool dsm_detected;
 	bool optimus_detected;
 	acpi_handle dhandle;
-	acpi_handle other_handle;
 	acpi_handle rom_handle;
 } nouveau_dsm_priv;
 
@@ -104,6 +103,29 @@ static int nouveau_optimus_dsm(acpi_handle handle, int func, int arg, uint32_t *
 	}
 
 	return 0;
+}
+
+/*
+ * On some platforms, _DSM(nouveau_op_dsm_muid, func0) has special
+ * requirements on the fourth parameter, so a private implementation
+ * instead of using acpi_check_dsm().
+ */
+static int nouveau_check_optimus_dsm(acpi_handle handle)
+{
+	int result;
+
+	/*
+	 * Function 0 returns a Buffer containing available functions.
+	 * The args parameter is ignored for function 0, so just put 0 in it
+	 */
+	if (nouveau_optimus_dsm(handle, 0, 0, &result))
+		return 0;
+
+	/*
+	 * ACPI Spec v4 9.14.1: if bit 0 is zero, no function is supported.
+	 * If the n-th bit is enabled, function n is supported
+	 */
+	return result & 1 && result & (1 << NOUVEAU_DSM_OPTIMUS_CAPS);
 }
 
 static int nouveau_dsm(acpi_handle handle, int func, int arg)
@@ -199,16 +221,14 @@ static int nouveau_dsm_pci_probe(struct pci_dev *pdev)
 	if (!dhandle)
 		return false;
 
-	if (!acpi_has_method(dhandle, "_DSM")) {
-		nouveau_dsm_priv.other_handle = dhandle;
+	if (!acpi_has_method(dhandle, "_DSM"))
 		return false;
-	}
+
 	if (acpi_check_dsm(dhandle, nouveau_dsm_muid, 0x00000102,
 			   1 << NOUVEAU_DSM_POWER))
 		retval |= NOUVEAU_DSM_HAS_MUX;
 
-	if (acpi_check_dsm(dhandle, nouveau_op_dsm_muid, 0x00000100,
-			   1 << NOUVEAU_DSM_OPTIMUS_CAPS))
+	if (nouveau_check_optimus_dsm(dhandle))
 		retval |= NOUVEAU_DSM_HAS_OPT;
 
 	if (retval & NOUVEAU_DSM_HAS_OPT) {
@@ -279,16 +299,6 @@ static bool nouveau_dsm_detect(void)
 		printk(KERN_INFO "VGA switcheroo: detected DSM switching method %s handle\n",
 			acpi_method_name);
 		nouveau_dsm_priv.dsm_detected = true;
-		/*
-		 * On some systems hotplug events are generated for the device
-		 * being switched off when _DSM is executed.  They cause ACPI
-		 * hotplug to trigger and attempt to remove the device from
-		 * the system, which causes it to break down.  Prevent that from
-		 * happening by setting the no_hotplug flag for the involved
-		 * ACPI device objects.
-		 */
-		acpi_bus_no_hotplug(nouveau_dsm_priv.dhandle);
-		acpi_bus_no_hotplug(nouveau_dsm_priv.other_handle);
 		ret = true;
 	}
 
@@ -366,9 +376,6 @@ bool nouveau_acpi_rom_supported(struct pci_dev *pdev)
 {
 	acpi_status status;
 	acpi_handle dhandle, rom_handle;
-
-	if (!nouveau_dsm_priv.dsm_detected && !nouveau_dsm_priv.optimus_detected)
-		return false;
 
 	dhandle = ACPI_HANDLE(&pdev->dev);
 	if (!dhandle)

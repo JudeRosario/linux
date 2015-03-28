@@ -314,7 +314,7 @@ static void audit_update_watch(struct audit_parent *parent,
 					     &nentry->rule.list);
 			}
 
-			audit_watch_log_rule_change(r, owatch, "updated rules");
+			audit_watch_log_rule_change(r, owatch, "updated_rules");
 
 			call_rcu(&oentry->rcu, audit_free_rule_rcu);
 		}
@@ -342,7 +342,7 @@ static void audit_remove_parent_watches(struct audit_parent *parent)
 	list_for_each_entry_safe(w, nextw, &parent->watches, wlist) {
 		list_for_each_entry_safe(r, nextr, &w->rules, rlist) {
 			e = container_of(r, struct audit_entry, rule);
-			audit_watch_log_rule_change(r, w, "remove rule");
+			audit_watch_log_rule_change(r, w, "remove_rule");
 			list_del(&r->rlist);
 			list_del(&r->list);
 			list_del_rcu(&e->list);
@@ -471,7 +471,7 @@ static int audit_watch_handle_event(struct fsnotify_group *group,
 				    struct fsnotify_mark *inode_mark,
 				    struct fsnotify_mark *vfsmount_mark,
 				    u32 mask, void *data, int data_type,
-				    const unsigned char *dname)
+				    const unsigned char *dname, u32 cookie)
 {
 	struct inode *inode;
 	struct audit_parent *parent;

@@ -4104,7 +4104,6 @@ static int mv_platform_probe(struct platform_device *pdev)
 	if (!hpriv->port_phys)
 		return -ENOMEM;
 	host->private_data = hpriv;
-	hpriv->n_ports = n_ports;
 	hpriv->board_idx = chip_soc;
 
 	host->iomap = NULL;
@@ -4132,12 +4131,17 @@ static int mv_platform_probe(struct platform_device *pdev)
 			rc = PTR_ERR(hpriv->port_phys[port]);
 			hpriv->port_phys[port] = NULL;
 			if (rc != -EPROBE_DEFER)
-				dev_warn(&pdev->dev, "error getting phy %d",
-					rc);
+				dev_warn(&pdev->dev, "error getting phy %d", rc);
+
+			/* Cleanup only the initialized ports */
+			hpriv->n_ports = port;
 			goto err;
 		} else
 			phy_power_on(hpriv->port_phys[port]);
 	}
+
+	/* All the ports have been initialized */
+	hpriv->n_ports = n_ports;
 
 	/*
 	 * (Re-)program MBUS remapping windows if we are asked to.
@@ -4176,13 +4180,12 @@ err:
 		clk_disable_unprepare(hpriv->clk);
 		clk_put(hpriv->clk);
 	}
-	for (port = 0; port < n_ports; port++) {
+	for (port = 0; port < hpriv->n_ports; port++) {
 		if (!IS_ERR(hpriv->port_clks[port])) {
 			clk_disable_unprepare(hpriv->port_clks[port]);
 			clk_put(hpriv->port_clks[port]);
 		}
-		if (hpriv->port_phys[port])
-			phy_power_off(hpriv->port_phys[port]);
+		phy_power_off(hpriv->port_phys[port]);
 	}
 
 	return rc;
@@ -4212,13 +4215,12 @@ static int mv_platform_remove(struct platform_device *pdev)
 			clk_disable_unprepare(hpriv->port_clks[port]);
 			clk_put(hpriv->port_clks[port]);
 		}
-		if (hpriv->port_phys[port])
-			phy_power_off(hpriv->port_phys[port]);
+		phy_power_off(hpriv->port_phys[port]);
 	}
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int mv_platform_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct ata_host *host = platform_get_drvdata(pdev);
@@ -4276,7 +4278,6 @@ static struct platform_driver mv_platform_driver = {
 	.resume		= mv_platform_resume,
 	.driver		= {
 		.name = DRV_NAME,
-		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(mv_sata_dt_ids),
 	},
 };
@@ -4285,7 +4286,7 @@ static struct platform_driver mv_platform_driver = {
 #ifdef CONFIG_PCI
 static int mv_pci_init_one(struct pci_dev *pdev,
 			   const struct pci_device_id *ent);
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int mv_pci_device_resume(struct pci_dev *pdev);
 #endif
 
@@ -4295,7 +4296,7 @@ static struct pci_driver mv_pci_driver = {
 	.id_table		= mv_pci_tbl,
 	.probe			= mv_pci_init_one,
 	.remove			= ata_pci_remove_one,
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 	.suspend		= ata_pci_device_suspend,
 	.resume			= mv_pci_device_resume,
 #endif
@@ -4453,7 +4454,7 @@ static int mv_pci_init_one(struct pci_dev *pdev,
 				 IS_GEN_I(hpriv) ? &mv5_sht : &mv6_sht);
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int mv_pci_device_resume(struct pci_dev *pdev)
 {
 	struct ata_host *host = pci_get_drvdata(pdev);

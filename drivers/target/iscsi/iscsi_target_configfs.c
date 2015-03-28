@@ -28,7 +28,7 @@
 #include <target/configfs_macros.h>
 #include <target/iscsi/iscsi_transport.h>
 
-#include "iscsi_target_core.h"
+#include <target/iscsi/iscsi_target_core.h>
 #include "iscsi_target_parameters.h"
 #include "iscsi_target_device.h"
 #include "iscsi_target_erl0.h"
@@ -36,7 +36,7 @@
 #include "iscsi_target_tpg.h"
 #include "iscsi_target_util.h"
 #include "iscsi_target.h"
-#include "iscsi_target_stat.h"
+#include <target/iscsi/iscsi_target_stat.h>
 #include "iscsi_target_configfs.h"
 
 struct target_fabric_configfs *lio_target_fabric_configfs;
@@ -669,19 +669,14 @@ static ssize_t lio_target_nacl_show_info(
 	} else {
 		sess = se_sess->fabric_sess_ptr;
 
-		if (sess->sess_ops->InitiatorName)
-			rb += sprintf(page+rb, "InitiatorName: %s\n",
-				sess->sess_ops->InitiatorName);
-		if (sess->sess_ops->InitiatorAlias)
-			rb += sprintf(page+rb, "InitiatorAlias: %s\n",
-				sess->sess_ops->InitiatorAlias);
+		rb += sprintf(page+rb, "InitiatorName: %s\n",
+			sess->sess_ops->InitiatorName);
+		rb += sprintf(page+rb, "InitiatorAlias: %s\n",
+			sess->sess_ops->InitiatorAlias);
 
-		rb += sprintf(page+rb, "LIO Session ID: %u   "
-			"ISID: 0x%02x %02x %02x %02x %02x %02x  "
-			"TSIH: %hu  ", sess->sid,
-			sess->isid[0], sess->isid[1], sess->isid[2],
-			sess->isid[3], sess->isid[4], sess->isid[5],
-			sess->tsih);
+		rb += sprintf(page+rb,
+			      "LIO Session ID: %u   ISID: 0x%6ph  TSIH: %hu  ",
+			      sess->sid, sess->isid, sess->tsih);
 		rb += sprintf(page+rb, "SessionType: %s\n",
 				(sess->sess_ops->SessionType) ?
 				"Discovery" : "Normal");
@@ -1052,6 +1047,11 @@ TPG_ATTR(demo_mode_discovery, S_IRUGO | S_IWUSR);
  */
 DEF_TPG_ATTRIB(default_erl);
 TPG_ATTR(default_erl, S_IRUGO | S_IWUSR);
+/*
+ * Define iscsi_tpg_attrib_s_t10_pi
+ */
+DEF_TPG_ATTRIB(t10_pi);
+TPG_ATTR(t10_pi, S_IRUGO | S_IWUSR);
 
 static struct configfs_attribute *lio_target_tpg_attrib_attrs[] = {
 	&iscsi_tpg_attrib_authentication.attr,
@@ -1064,6 +1064,7 @@ static struct configfs_attribute *lio_target_tpg_attrib_attrs[] = {
 	&iscsi_tpg_attrib_prod_mode_write_protect.attr,
 	&iscsi_tpg_attrib_demo_mode_discovery.attr,
 	&iscsi_tpg_attrib_default_erl.attr,
+	&iscsi_tpg_attrib_t10_pi.attr,
 	NULL,
 };
 
@@ -1754,9 +1755,7 @@ static u32 lio_sess_get_initiator_sid(
 	/*
 	 * iSCSI Initiator Session Identifier from RFC-3720.
 	 */
-	return snprintf(buf, size, "%02x%02x%02x%02x%02x%02x",
-		sess->isid[0], sess->isid[1], sess->isid[2],
-		sess->isid[3], sess->isid[4], sess->isid[5]);
+	return snprintf(buf, size, "%6phN", sess->isid);
 }
 
 static int lio_queue_data_in(struct se_cmd *se_cmd)
@@ -1813,6 +1812,13 @@ static void lio_queue_tm_rsp(struct se_cmd *se_cmd)
 
 	cmd->i_state = ISTATE_SEND_TASKMGTRSP;
 	iscsit_add_cmd_to_response_queue(cmd, cmd->conn, cmd->i_state);
+}
+
+static void lio_aborted_task(struct se_cmd *se_cmd)
+{
+	struct iscsi_cmd *cmd = container_of(se_cmd, struct iscsi_cmd, se_cmd);
+
+	cmd->conn->conn_transport->iscsit_aborted_task(cmd->conn, cmd);
 }
 
 static char *lio_tpg_get_endpoint_wwn(struct se_portal_group *se_tpg)
@@ -1999,6 +2005,7 @@ int iscsi_target_register_configfs(void)
 	fabric->tf_ops.queue_data_in = &lio_queue_data_in;
 	fabric->tf_ops.queue_status = &lio_queue_status;
 	fabric->tf_ops.queue_tm_rsp = &lio_queue_tm_rsp;
+	fabric->tf_ops.aborted_task = &lio_aborted_task;
 	/*
 	 * Setup function pointers for generic logic in target_core_fabric_configfs.c
 	 */
